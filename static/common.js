@@ -29,6 +29,14 @@ const 租约台 = {
     const cls = String(状态 || '').replace(/\s/g, '');
     return `<span class="徽章 ${租约台.安全文本(cls)}">${租约台.安全文本(状态)}</span>`;
   },
+  担保徽章(担保) {
+    if (!担保 || !担保.担保状态) {
+      return '<span class="徽章 无担保">无担保</span>';
+    }
+    const 态 = 担保.担保状态;
+    const cls = '担保' + 态;
+    return `<span class="徽章 ${租约台.安全文本(cls)}">担保·${租约台.安全文本(态)}</span>`;
+  },
   占用比(已占, 容量) {
     const cap = Number(容量) || 1;
     const used = Number(已占) || 0;
@@ -46,7 +54,7 @@ const 租约台 = {
     const box = document.getElementById(containerId);
     if (!box) return;
     box.innerHTML = '';
-    const keys = ['资源池数', '启用池', '租约总数', '生效中', '待生效', '回收匣待处置', '心跳条数'];
+    const keys = ['资源池数', '启用池', '租约总数', '待生效', '生效中', '已取消', '担保冻结', '担保转正', '担保影子', '回收匣待处置', '心跳条数'];
     for (const k of keys) {
       if (o[k] == null) continue;
       const d = document.createElement('div');

@@ -1,5 +1,10 @@
 async function 刷新回收() {
-  const rows = await 租约台.getJSON('/api/回收');
+  const [rows, 担保行] = await Promise.all([
+    租约台.getJSON('/api/回收'),
+    租约台.getJSON('/api/担保'),
+  ]);
+  const 担保按租约 = {};
+  for (const g of 担保行) 担保按租约[g.租约号] = g;
   const tb = document.getElementById('回收表');
   tb.innerHTML = '';
   for (const r of rows) {
@@ -10,11 +15,13 @@ async function 刷新回收() {
         '<button class="按钮 琥珀" data-act="ok" data-id="' + 租约台.安全文本(r.回收号) + '">确认回收</button>' +
         '<button class="按钮 次" data-act="void" data-id="' + 租约台.安全文本(r.回收号) + '">作废</button>';
     }
+    const g = 担保按租约[r.租约号];
     tr.innerHTML =
       '<td>' + 租约台.安全文本(r.回收号) + '</td>' +
       '<td>' + 租约台.安全文本(r.租约号) + '</td>' +
       '<td>' + 租约台.安全文本(r.原因) + '</td>' +
       '<td>' + 租约台.状态徽章(r.状态) + '</td>' +
+      '<td>' + 租约台.担保徽章(g ? { 担保状态: g.状态 } : null) + '</td>' +
       '<td>' + 租约台.安全文本(租约台.格式化时刻(r.入匣时)) + '</td>' +
       '<td class="工具条">' + ops + '</td>';
     tb.appendChild(tr);

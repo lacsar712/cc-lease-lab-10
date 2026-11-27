@@ -34,13 +34,22 @@
           <option>待生效</option>
           <option>生效中</option>
           <option>已续约</option>
+          <option>已取消</option>
           <option>已回收</option>
         </select>
         <button class="按钮" type="button" id="刷新钮">刷新</button>
       </div>
       <table>
-        <thead><tr><th>租约号</th><th>租户</th><th>池</th><th>状态</th><th>到期</th><th>操作</th></tr></thead>
+        <thead><tr><th>租约号</th><th>租户</th><th>池</th><th>状态</th><th>担保</th><th>到期</th><th>操作</th></tr></thead>
         <tbody id="租约表"></tbody>
+      </table>
+    </section>
+    <section class="卷">
+      <h2>担保账册（旁路冻结指纹）</h2>
+      <p class="说明">冻结指纹先入账，激活转正、取消退冻；已退冻为只读影子，不计现行占用。</p>
+      <table>
+        <thead><tr><th>指纹</th><th>租约号</th><th>池</th><th>担保状态</th><th>冻结时</th><th>转正时</th><th>退冻时</th></tr></thead>
+        <tbody id="担保表"></tbody>
       </table>
     </section>
   </main>

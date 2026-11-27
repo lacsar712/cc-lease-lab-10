@@ -31,7 +31,19 @@ async function 刷新留痕() {
 
 document.getElementById('跑互证').onclick = async () => {
   const rep = await 租约台.postJSON('/api/互证/跑', {});
-  document.getElementById('互证详情').textContent = JSON.stringify(rep, null, 2);
+  const 摘要 = {
+    结论: rep.结论,
+    池已占合计: rep.池已占合计,
+    担保现行占用: rep.担保现行占用,
+    冻结担保数: rep.冻结担保数,
+    待生效租约数: rep.待生效租约数,
+    转正担保数: rep.转正担保数,
+    生效租约数: rep.生效租约数,
+    已退冻影子数: rep.已退冻影子数,
+    已取消租约数: rep.已取消租约数,
+    差异明细: rep.差异明细,
+  };
+  document.getElementById('互证详情').textContent = JSON.stringify(摘要, null, 2);
   await 刷新报告();
   await 刷新留痕();
 };

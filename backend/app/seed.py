@@ -75,6 +75,20 @@ CREATE TABLE IF NOT EXISTS 操作留痕 (
   池键 TEXT NOT NULL DEFAULT '',
   详情 TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS 担保账 (
+  指纹 TEXT PRIMARY KEY,
+  租约号 TEXT NOT NULL UNIQUE,
+  池键 TEXT NOT NULL,
+  状态 TEXT NOT NULL DEFAULT '冻结',
+  冻结时 TEXT NOT NULL,
+  转正时 TEXT NOT NULL DEFAULT '',
+  退冻时 TEXT NOT NULL DEFAULT '',
+  退冻次数 INTEGER NOT NULL DEFAULT 0,
+  详情 TEXT NOT NULL DEFAULT '',
+  FOREIGN KEY (租约号) REFERENCES 租约(租约号),
+  FOREIGN KEY (池键) REFERENCES 资源池(池键)
+);
+CREATE INDEX IF NOT EXISTS idx_担保账_状态 ON 担保账(状态);
 """
 
 
@@ -111,11 +125,13 @@ def 初始化库() -> None:
             def iso(dt):
                 return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
+            # 池初始已占一律为 0：占用只能由担保冻结写穿产生，
+            # 下方播种租约后再按真实未结租约回算，杜绝与台账脱钩的历史数字。
             池们 = [
-                ("pool-compute", "计算槽池", 64, 12, 1, "GPU 切片共享池"),
-                ("pool-storage", "对象存储池", 200, 45, 1, "温存桶配额"),
-                ("pool-net", "出口带宽池", 80, 30, 1, "跨区带宽租约"),
-                ("pool-db", "只读连接池", 32, 8, 1, "分析库连接"),
+                ("pool-compute", "计算槽池", 64, 0, 1, "GPU 切片共享池"),
+                ("pool-storage", "对象存储池", 200, 0, 1, "温存桶配额"),
+                ("pool-net", "出口带宽池", 80, 0, 1, "跨区带宽租约"),
+                ("pool-db", "只读连接池", 32, 0, 1, "分析库连接"),
                 ("pool-msg", "消息主题池", 120, 0, 0, "维护中暂禁申领"),
             ]
             for 池键, 名称, 容量, 已占, 启用, 说明 in 池们:
@@ -238,6 +254,40 @@ def 初始化库() -> None:
                 ),
             )
             _留痕(conn, "系统播种", 详情="初始资源池与样例租约")
+
+        # 担保工程上线：为存量未结租约补建冻结/转正指纹，
+        # 使旧库的担保边表与租约台账、池占用从上线时刻即对齐。
+        存量 = conn.execute(
+            """SELECT l.租约号, l.池键, l.状态, l.申领时 FROM 租约 l
+               LEFT JOIN 担保账 g ON l.租约号=g.租约号
+               WHERE g.指纹 IS NULL
+                 AND l.状态 IN ('待生效','生效中','已续约')"""
+        ).fetchall()
+        import uuid as _uuid
+
+        for r in 存量:
+            指纹 = f"gz-seed-{_uuid.uuid4().hex[:8]}"
+            if r["状态"] == "待生效":
+                担保状态, 转正时 = "冻结", ""
+            else:
+                担保状态, 转正时 = "转正", r["申领时"]
+            conn.execute(
+                """INSERT OR IGNORE INTO 担保账(指纹,租约号,池键,状态,冻结时,转正时,详情)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (指纹, r["租约号"], r["池键"], 担保状态, r["申领时"], 转正时, "存量补建"),
+            )
+
+        # 池主表已占按担保边表现行指纹（冻结+转正）回算，双写两轨对齐
+        占用 = conn.execute(
+            """SELECT 池键, COUNT(*) AS c FROM 担保账
+               WHERE 状态 IN ('冻结','转正') GROUP BY 池键"""
+        ).fetchall()
+        占用映射 = {r["池键"]: r["c"] for r in 占用}
+        for 池键, in conn.execute("SELECT 池键 FROM 资源池").fetchall():
+            conn.execute(
+                "UPDATE 资源池 SET 已占=? WHERE 池键=?",
+                (占用映射.get(池键, 0), 池键),
+            )
         conn.commit()
     finally:
         conn.close()

@@ -85,38 +85,54 @@ def 改启用(池键: str, 启用: bool) -> dict:
 def 预占一格(池键: str) -> None:
     conn = 连接()
     try:
-        row = conn.execute(
-            "SELECT 容量,已占,启用 FROM 资源池 WHERE 池键=?", (池键,)
-        ).fetchone()
-        if not row:
-            raise ValueError("无此资源池")
-        if not int(row["启用"]):
-            raise ValueError("资源池未启用")
-        已占 = int(row["已占"])
-        容量 = int(row["容量"])
-        规 = 说明.租账规()
-        if 规.get("允许超额申领") != "1" and 已占 >= 容量:
-            raise ValueError("资源池已满")
-        conn.execute(
-            "UPDATE 资源池 SET 已占=已占+1, 更新时=? WHERE 池键=?",
-            (校验.此刻(), 池键),
-        )
+        _预占(conn, 池键)
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
+
+
+def _预占(conn, 池键: str) -> None:
+    """在调用方事务内占一格池名额，与担保冻结指纹同生共死。"""
+    row = conn.execute(
+        "SELECT 容量,已占,启用 FROM 资源池 WHERE 池键=?", (池键,)
+    ).fetchone()
+    if not row:
+        raise ValueError("无此资源池")
+    if not int(row["启用"]):
+        raise ValueError("资源池未启用")
+    已占 = int(row["已占"])
+    容量 = int(row["容量"])
+    规 = 说明.租账规_连接(conn)
+    if 规.get("允许超额申领") != "1" and 已占 >= 容量:
+        raise ValueError("资源池已满")
+    conn.execute(
+        "UPDATE 资源池 SET 已占=已占+1, 更新时=? WHERE 池键=?",
+        (校验.此刻(), 池键),
+    )
 
 
 def 释放一格(池键: str) -> None:
     conn = 连接()
     try:
-        row = conn.execute("SELECT 已占 FROM 资源池 WHERE 池键=?", (池键,)).fetchone()
-        if not row:
-            return
-        已占 = max(0, int(row["已占"]) - 1)
-        conn.execute(
-            "UPDATE 资源池 SET 已占=?, 更新时=? WHERE 池键=?",
-            (已占, 校验.此刻(), 池键),
-        )
+        _释放(conn, 池键)
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
+
+
+def _释放(conn, 池键: str) -> None:
+    """在调用方事务内回补一格池名额，与担保退冻指纹双写两轨。"""
+    row = conn.execute("SELECT 已占 FROM 资源池 WHERE 池键=?", (池键,)).fetchone()
+    if not row:
+        return
+    已占 = max(0, int(row["已占"]) - 1)
+    conn.execute(
+        "UPDATE 资源池 SET 已占=?, 更新时=? WHERE 池键=?",
+        (已占, 校验.此刻(), 池键),
+    )

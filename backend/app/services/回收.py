@@ -62,10 +62,14 @@ def 确认回收(回收号: str) -> dict:
             "UPDATE 回收匣 SET 状态='已回收', 处置时=? WHERE 回收号=?",
             (校验.此刻(), 回收号),
         )
-        租约.标记回收(row["租约号"])
+        # 复用同一连接：匣状态、租约状态、担保结转、池回补一笔事务，杜绝嵌套连接自锁
+        租约.标记回收(row["租约号"], conn=conn)
         _留痕(conn, "确认回收", row["租约号"], 回收号)
         conn.commit()
         return dict(conn.execute("SELECT * FROM 回收匣 WHERE 回收号=?", (回收号,)).fetchone())
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

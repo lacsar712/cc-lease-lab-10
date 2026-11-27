@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import seed
-from app.services import 会话, 互证, 回收, 台账, 夹具, 租约, 续约, 说明, 资源
+from app.services import 会话, 互证, 回收, 台账, 夹具, 租约, 续约, 担保, 说明, 资源
 
 _STATIC = Path(__file__).resolve().parent / "static"
 端口 = int(os.environ.get("端口", "8600"))
@@ -132,9 +132,9 @@ def create_app() -> FastAPI:
     def api_租约列表(状态: str | None = None):
         return 说明.租约列表(状态)
 
-    @app.get("/api/租约/{租约号}")
-    def api_租约一条(租约号: str):
-        row = 说明.租约一条(租约号)
+    @app.get("/api/租约/{lease_id}")
+    def api_租约一条(lease_id: str):
+        row = 说明.租约一条(lease_id)
         if not row:
             return JSONResponse({"错误": "无此租约"}, status_code=404)
         return row
@@ -154,6 +154,18 @@ def create_app() -> FastAPI:
             return 租约.激活(body["租约号"])
         except (KeyError, ValueError) as e:
             return JSONResponse({"错误": str(e)}, status_code=400)
+
+    @app.post("/api/租约/取消")
+    async def api_租约取消(request: Request):
+        body = await request.json()
+        try:
+            return 租约.取消(body["租约号"])
+        except (KeyError, ValueError) as e:
+            return JSONResponse({"错误": str(e)}, status_code=400)
+
+    @app.get("/api/担保")
+    def api_担保列表(状态: str | None = None):
+        return 担保.列表(状态)
 
     @app.get("/api/心跳")
     def api_心跳(租约号: str | None = None):
